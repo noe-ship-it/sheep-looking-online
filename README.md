@@ -67,3 +67,9 @@ docs/RULES_SPEC.md   video analysis and rule specification
 - Matchmaking is simple first-come lobby filling, with no skill rating or region selection.
 - There is no chat or spectating. Names are the only user text.
 - Ambiguities in the source rules are listed in `docs/RULES_SPEC.md`, and the app follows the choices recorded there.
+
+## Credits
+- Game design, rules and card artwork: Zedaph & DotDotDash, published by CREO Cards (unofficial fan implementation; art from the official Print & Play).
+- "How to play" links to Zedaph's official video: https://youtu.be/0o2nsB1hVK0
+- "Baa!" sound: "Sheep Baa" by AntumDeluge (OpenGameArt), from "Sheep bleat.wav" by mikewest (Freesound), both CC0 — see `public/sounds/CREDITS.md`.
+- Fonts: Fredoka and Nunito (SIL Open Font License) — see `public/fonts/`.

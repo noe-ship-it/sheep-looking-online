@@ -6,8 +6,6 @@ const HAND_MAX = 7;
 const app = document.getElementById('app');
 const connEl = document.getElementById('conn');
 const toastEl = document.getElementById('toast');
-const rulesDialog = document.getElementById('rules-dialog');
-document.getElementById('btn-rules').addEventListener('click', () => rulesDialog.showModal());
 const typesDialog = document.getElementById('types-dialog');
 document.getElementById('btn-types').addEventListener('click', () => {
   document.getElementById('types-dialog-body').replaceChildren(cardTypesSection('types-dialog-title'));
@@ -52,6 +50,7 @@ async function act(action) {
   if (!res.error) {
     S.sel.clear(); S.effectSel = []; S.halves.clear(); S.recoverSel = []; S.discardMode = false;
     if (action.type === 'makeSheep') sfx.play('pop');
+    if (action.type === 'endTurn') sfx.play('baa', true); // once per accepted "Baa!"; never on a rejected or failed action
   }
   render();
   return res;
@@ -303,7 +302,31 @@ const sfx = (() => {
       ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.2; master.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    loadBaa();
     return ctx;
+  }
+  // Recorded sheep "baa" (public/sounds, CC0). Fetched once after audio is unlocked; any failure just means no baa.
+  let baaBuf = null; let baaLoad = null;
+  function loadBaa() {
+    if (baaLoad || !ctx) return baaLoad;
+    const url = typeof Audio === 'function' && new Audio().canPlayType('audio/mpeg') ? '/sounds/baa.mp3' : '/sounds/baa.ogg';
+    baaLoad = fetch(url)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+      .then((data) => new Promise((res, rej) => ctx.decodeAudioData(data, res, rej))) // callback form also works in older Safari
+      .then((buf) => { baaBuf = buf; return buf; })
+      .catch(() => null);
+    return baaLoad;
+  }
+  function playBaa() {
+    const start = () => {
+      if (!baaBuf || !enabled || ctx.state !== 'running') return;
+      const src = ctx.createBufferSource(); const g = ctx.createGain();
+      src.buffer = baaBuf; g.gain.value = 2.5; // the sample peaks at -6 dB; lift it to sit with the synth sounds
+      src.connect(g); g.connect(master); src.start();
+    };
+    if (baaBuf) return start();
+    const asked = performance.now(); // still loading (first press): play only if it arrives promptly
+    loadBaa()?.then(() => { if (performance.now() - asked < 800) start(); });
   }
   // Browsers only allow audio after a user gesture: unlock on the first tap/click/key.
   const unlock = () => { if (enabled) audio(); };
@@ -323,6 +346,7 @@ const sfx = (() => {
     o.start(t0); o.stop(t0 + dur + 0.02);
   }
   const SOUNDS = {
+    baa: () => playBaa(),
     pop: () => note(520, 0, 0.09, { to: 820, vol: 0.6 }),
     tick: () => note(1250, 0, 0.04, { type: 'sine', vol: 0.35 }),
     turn: () => { note(659, 0, 0.14, { type: 'sine' }); note(880, 0.13, 0.22, { type: 'sine' }); },

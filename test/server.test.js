@@ -210,5 +210,13 @@ test('serves the client, room links and health check', async () => {
   assert.equal((await fetch(url + '/app.js')).status, 200);
   for (const f of ['/', '/app.js', '/style.css', '/shared/cards.js', '/r/ABCDE']) assert.equal((await fetch(url + f)).headers.get('cache-control'), 'no-cache', f);
   assert.match((await fetch(url + '/cards/wolf.webp')).headers.get('cache-control'), /max-age=86400/);
+  for (const [f, type] of [['/sounds/baa.mp3', 'audio/mpeg'], ['/sounds/baa.ogg', 'audio/ogg']]) {
+    const r = await fetch(url + f);
+    assert.equal(r.status, 200, f);
+    assert.equal(r.headers.get('content-type'), type);
+    assert.ok((await r.arrayBuffer()).byteLength > 5000);
+  }
+  const html = await (await fetch(url + '/')).text();
+  assert.match(html, /<a id="btn-rules" class="navlink" href="https:\/\/youtu\.be\/0o2nsB1hVK0" target="_blank" rel="noopener noreferrer"/);
   assert.equal((await (await fetch(url + '/healthz')).json()).ok, true);
 });

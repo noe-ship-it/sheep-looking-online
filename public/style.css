@@ -41,7 +41,7 @@ a { color: var(--accent); }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; max-width: 1680px; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 72px); height: 76px; border-bottom: 1px solid var(--line); }
 .brand { font: 600 1.2rem/1 var(--head); color: var(--accent); text-decoration: none; white-space: nowrap; }
 .topbar-right { display: flex; gap: 1.4rem; align-items: center; }
-.navlink { background: none; border: 0; padding: .5rem 0; font: 700 1rem/1 var(--body); color: var(--ink); cursor: pointer; min-height: 44px; }
+.navlink { background: none; border: 0; padding: .5rem 0; font: 700 1rem/1 var(--body); color: var(--ink); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
 .navlink:hover { color: var(--accent); }
 main { max-width: 1680px; margin: 0 auto; padding: 1.5rem clamp(1rem, 4vw, 72px) 2rem; outline: none; }
 
