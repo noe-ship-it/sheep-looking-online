@@ -18,6 +18,18 @@ http.createServer((req, res) => {
   const room = manager.get(url.searchParams.get('code'));
   if (!room?.game) { res.writeHead(404); return res.end('no game'); }
   const g = room.game;
+  if (url.pathname === '/rig4') {
+    const cols = [['orange', 'pink'], ['cyan'], ['purple', 'lime'], ['brown']];
+    g.players.forEach((p, i) => {
+      p.field = (cols[i] ?? []).map((c, k) => ({ id: `s9${i}${k}`, cards: [C('head', c), C('butt', c)], modifier: null }));
+      p.hand = [C('head', 'grey'), C('wheat')];
+    });
+    g.players[0].hand = [C('head', 'red'), C('butt', 'red'), C('wolf')];
+    g.turn = 0; g.pending = null;
+    g.log.push({ n: ++g.seq, text: '[test] 4-player deal rigged' });
+    manager.armTimer(room); manager.broadcast(room);
+    return res.end('ok');
+  }
   const [a, b] = g.players;
   const orangeHead = C('head', 'orange'); const greenButt = C('butt', 'green'); const paint = C('paint');
   a.hand = [C('head', 'red'), C('butt', 'red'), C('butt', 'orange'), C('wolf'), C('itslam', null, { effect: 'lure2' }), C('butt', 'rainbow')];

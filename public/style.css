@@ -150,6 +150,9 @@ label { font-weight: 700; display: block; margin: .4rem 0 .3rem; color: var(--in
 .sheep { position: relative; display: flex; flex-direction: column; align-items: center; padding: .3rem; border-radius: 12px; border: 2px dashed transparent; }
 .sheep.targetable { border-color: var(--accent); background: rgba(164,56,93,.06); }
 .sheep.picked { border-style: solid; border-color: #1a5fd6; background: #e8f0ff; }
+.sheep.fresh { border-color: #e0a800; border-style: solid; background: #fff6d6; animation: pop .45s ease-out; }
+.newtag { position: absolute; top: -9px; left: -6px; z-index: 3; background: var(--ink); color: #fff; font: 700 .68rem/1 var(--head); letter-spacing: .06em; text-transform: uppercase; padding: .25rem .45rem; border-radius: 999px; }
+@keyframes pop { from { transform: scale(.92); } to { transform: scale(1); } }
 .sheep .pts { position: absolute; top: -6px; right: -6px; background: #ffe94a; border: 2px solid var(--ink); border-radius: 999px; font: 700 .75rem/1.2 var(--head); padding: 0 .35rem; z-index: 2; }
 
 .card { width: var(--card-w); height: calc(var(--card-w) * 1.442); border-radius: 8px; border: 0; background: var(--pink); padding: 0; overflow: hidden; flex: 0 0 auto; box-shadow: 0 1px 2px rgba(90,40,60,.18), 0 4px 10px rgba(90,40,60,.10); display: block; position: relative; }

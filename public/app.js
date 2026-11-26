@@ -19,6 +19,7 @@ const S = {
   connected: false, room: null, game: null, you: null, skew: 0,
   sel: new Set(), discardMode: false, effectSel: [], halves: new Map(), recoverSel: [],
   leaveArm: false, busy: false, lastLogN: 0, prefillCode: null,
+  sheepSig: null, fresh: new Map(),
 };
 const CREDS_KEY = 'sheep:creds';
 const NAME_KEY = 'sheep:name';
@@ -72,8 +73,24 @@ socket.on('state', (msg) => {
   const me = myPlayer();
   if (me?.hand) for (const id of [...S.sel]) if (!me.hand.some((c) => c.id === id)) S.sel.delete(id);
   if (!S.game?.pending || S.game.pending.stage !== 'effect') { S.effectSel = []; S.halves.clear(); S.recoverSel = []; }
+  markFreshSheep();
   render();
 });
+
+/** Highlight sheep that just arrived in (or changed in) any field, so every player sees each move. */
+const FRESH_MS = 5000;
+function markFreshSheep() {
+  if (!S.game) { S.sheepSig = null; return; }
+  const sig = new Map();
+  for (const p of S.game.players) for (const sh of p.field) {
+    sig.set(sh.id, `${p.id}|${sh.cards.map((c) => c.id).join(',')}|${sh.modifier?.id ?? ''}`);
+  }
+  const now = Date.now();
+  if (S.sheepSig) for (const [id, v] of sig) if (S.sheepSig.get(id) !== v) S.fresh.set(id, now + FRESH_MS);
+  for (const [id, until] of S.fresh) if (until <= now || !sig.has(id)) S.fresh.delete(id);
+  S.sheepSig = sig;
+  if (S.fresh.size) setTimeout(() => { const t = Date.now(); let changed = false; for (const [id, u] of S.fresh) if (u <= t) { S.fresh.delete(id); changed = true; } if (changed) render(); }, FRESH_MS + 50);
+}
 
 function setConn(text) {
   connEl.textContent = text ?? (S.connected ? 'Online' : 'Reconnecting…');
@@ -323,6 +340,7 @@ function opponentPanel(p) {
       h('b', {}, p.name), p.left && h('span', { class: 'tag' }, 'left'),
       isTurn && h('span', { class: 'tag turn' }, 'turn'),
       h('span', { class: 'spacer' }),
+      h('span', { class: 'fine', title: 'Sheep in field' }, `${p.field.length} sheep`),
       h('span', { class: 'fine', title: 'Cards in hand' }, `✋ ${p.handCount}`),
       h('span', { class: 'score' }, `${p.score} pt${p.score === 1 ? '' : 's'}`)),
     protections(p),
@@ -341,7 +359,9 @@ function sheepEl(owner, s) {
   const picked = effectMode && (S.effectSel.includes(s.id) || S.halves.has(s.id));
   const targetable = isSheepTargetable(owner, s);
   const desc = `${owner.id === S.you ? 'Your' : owner.name + "'s"} sheep: ${s.cards.map(cardLabel).join(' and ')}${s.modifier ? ` with ${cardLabel(s.modifier)}` : ''}${isFullRainbow(s) ? ' (full rainbow, 2 points)' : ''}`;
-  return h('div', { class: `sheep${picked ? ' picked' : ''}${targetable ? ' targetable' : ''}${isFullRainbow(s) ? ' rainbow' : ''}`, role: 'group', 'aria-label': desc },
+  const fresh = S.fresh.has(s.id);
+  return h('div', { class: `sheep${picked ? ' picked' : ''}${targetable ? ' targetable' : ''}${isFullRainbow(s) ? ' rainbow' : ''}${fresh ? ' fresh' : ''}`, role: 'group', 'aria-label': desc + (fresh ? ' (new)' : '') },
+    fresh && h('span', { class: 'newtag' }, 'New'),
     s.modifier && h('div', { class: 'mod' }, h('img', { src: `/cards/${s.modifier.art}.webp`, alt: `${MOD_ICON[s.modifier.kind]} modifier` })),
     h('div', { class: 'halves' }, s.cards.map((c) => cardEl(c, {
       small: true,
