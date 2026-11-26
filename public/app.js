@@ -274,30 +274,80 @@ function lobbyView() {
 }
 
 // ---------- game view ----------
+// Seats around the table, in clockwise order starting with you at the bottom.
+const SEATS = { 2: ['bottom', 'top'], 3: ['bottom', 'left', 'right'], 4: ['bottom', 'left', 'top', 'right'] };
+const SEAT_NAME = { bottom: 'bottom', left: 'left', top: 'top', right: 'right' };
+const POINT_DEG = { top: 0, right: 90, bottom: 180, left: 270 };
+
 function gameView() {
   const g = S.game;
   if (!g) return h('p', { class: 'loading' }, 'Loading game…');
   if (g.phase === 'ended') return endView();
   const me = myPlayer();
-  const opps = rotate(g.players, S.you).filter((p) => p.id !== S.you);
+  const order = rotate(g.players, S.you); // clockwise, you first
+  const posList = SEATS[order.length] ?? SEATS[4];
+  const seatOf = new Map(order.map((p, i) => [p.id, posList[i]]));
+  const nextId = nextPlayerId(g);
+  const open = ['top', 'left', 'right', 'bottom'].filter((pos) => !posList.includes(pos));
   return h('section', { class: 'game' },
     h('div', { class: 'gamebar' },
       h('span', { class: 'pill' }, `Room ${S.room.code}`),
-      h('span', { class: 'pill', title: 'Cards left in the draw pile' }, `🂠 Draw: ${g.deckCount}`),
-      h('button', { class: 'pill btnlike', type: 'button', onclick: () => openDiscard() }, `🗑 Discard: ${g.discard.length}`),
+      h('span', { class: 'pill', title: 'Turns pass clockwise around the table' }, '↻ Clockwise'),
       g.finalRound && h('span', { class: 'pill warn' }, '⚠ Final round'),
       h('span', { id: 'timer', class: `pill${(secondsLeft() ?? 99) <= 3 ? ' urgent' : ''}`, 'aria-label': 'Time left for the current decision' }, secondsLeft() == null ? '' : `⏱ ${secondsLeft()}s`),
       h('span', { class: 'spacer' }), leaveButton()),
-    statusBanner(),
-    h('div', { class: `opponents n${opps.length}` }, opps.map(opponentPanel)),
-    g.pending && pendingPanel(),
-    h('div', { class: 'mine' },
-      h('div', { class: 'mine-head' },
-        h('h2', {}, 'Your field ', h('span', { class: 'score' }, `${me.score} pt${me.score === 1 ? '' : 's'}`)),
-        protections(me)),
-      fieldEl(me)),
+    h('div', { class: 'table', role: 'region', 'aria-label': 'Card table, turns pass clockwise' },
+      order.map((p) => seatEl(p, seatOf.get(p.id), nextId)),
+      open.map((pos) => h('div', { class: `seat seat-${pos} open`, 'aria-hidden': 'true' }, h('span', {}, 'Open seat'))),
+      tableCenter(g, seatOf)),
     handPanel(me),
     logPanel());
+}
+
+/** The next player clockwise from whoever is playing now. */
+function nextPlayerId(g) {
+  const n = g.players.length;
+  let i = g.players.findIndex((p) => p.id === g.turnPlayerId);
+  for (let k = 0; k < n; k++) { i = (i + 1) % n; if (!g.players[i].left) return g.players[i].id; }
+  return null;
+}
+
+function seatEl(p, pos, nextId) {
+  const g = S.game;
+  const m = S.room.members.find((x) => x.id === p.id);
+  const mine = p.id === S.you;
+  const isTurn = g.turnPlayerId === p.id;
+  const label = `${mine ? 'You' : p.name}, ${SEAT_NAME[pos]} seat${isTurn ? ', playing now' : ''}`;
+  return h('section', { class: `seat seat-${pos}${isTurn ? ' turn' : ''}${p.left ? ' gone' : ''}${mine ? ' me' : ''}`, 'aria-label': label },
+    h('div', { class: 'seat-head' },
+      h('span', { class: `dot ${(m?.connected && !p.left) ? 'on' : 'off'}`, 'aria-hidden': 'true' }),
+      h('b', { class: 'seat-name' }, mine ? `${p.name} (you)` : p.name),
+      p.left && h('span', { class: 'tag' }, 'left'),
+      isTurn && h('span', { class: 'tag turn' }, mine ? 'Your turn' : 'Playing'),
+      !isTurn && nextId === p.id && h('span', { class: 'tag next' }, 'Up next'),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'stat', title: 'Sheep in field' }, `${p.field.length} sheep`),
+      h('span', { class: 'stat', title: 'Cards in hand' }, `✋ ${p.handCount}`),
+      h('span', { class: 'score' }, `${p.score} pt${p.score === 1 ? '' : 's'}`)),
+    protections(p),
+    fieldEl(p));
+}
+
+function tableCenter(g, seatOf) {
+  const turnPos = seatOf.get(g.turnPlayerId) ?? 'bottom';
+  const top = g.discard.at(-1);
+  return h('div', { class: 'table-center' },
+    h('div', { class: 'piles' },
+      h('div', { class: 'pile' },
+        h('div', { class: 'card small', role: 'img', 'aria-label': `Draw pile, ${g.deckCount} cards` }, g.deckCount ? h('img', { src: '/cards/back.webp', alt: '' }) : null),
+        h('span', { class: 'pile-label' }, `Draw · ${g.deckCount}`)),
+      h('div', { class: 'turn-pointer', 'aria-hidden': 'true' },
+        h('span', { class: 'arrow', style: `transform: rotate(${POINT_DEG[turnPos]}deg)`, html: '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5"/><path d="M5 11l7-7 7 7"/></svg>' })),
+      h('button', { class: 'pile pilebtn', type: 'button', onclick: () => openDiscard(), 'aria-label': `Discard pile, ${g.discard.length} cards. Open to view` },
+        top ? cardEl(top, { small: true, label: 'Top of the discard pile' }) : h('div', { class: 'card small emptypile' }),
+        h('span', { class: 'pile-label' }, `Discard · ${g.discard.length}`))),
+    statusBanner(),
+    g.pending && pendingPanel());
 }
 
 function rotate(players, youId) {
@@ -328,23 +378,6 @@ function protections(p) {
   return h('div', { class: 'prot' },
     p.wolfProtected && h('span', { class: 'tag', title: 'Double-headed frankensheep: immune to Wolf cards' }, '🛡 Wolf-proof'),
     p.wheatProtected && h('span', { class: 'tag', title: 'Double-butted frankensheep: immune to Wheat cards' }, '🛡 Wheat-proof'));
-}
-
-function opponentPanel(p) {
-  const m = S.room.members.find((x) => x.id === p.id);
-  const g = S.game;
-  const isTurn = g.turnPlayerId === p.id;
-  return h('div', { class: `opp${isTurn ? ' turn' : ''}${p.left ? ' left' : ''}` },
-    h('div', { class: 'opp-head' },
-      h('span', { class: `dot ${m?.connected && !p.left ? 'on' : 'off'}`, 'aria-hidden': 'true' }),
-      h('b', {}, p.name), p.left && h('span', { class: 'tag' }, 'left'),
-      isTurn && h('span', { class: 'tag turn' }, 'turn'),
-      h('span', { class: 'spacer' }),
-      h('span', { class: 'fine', title: 'Sheep in field' }, `${p.field.length} sheep`),
-      h('span', { class: 'fine', title: 'Cards in hand' }, `✋ ${p.handCount}`),
-      h('span', { class: 'score' }, `${p.score} pt${p.score === 1 ? '' : 's'}`)),
-    protections(p),
-    fieldEl(p));
 }
 
 function fieldEl(p) {

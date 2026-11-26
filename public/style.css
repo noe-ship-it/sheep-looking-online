@@ -129,6 +129,87 @@ label { font-weight: 700; display: block; margin: .4rem 0 .3rem; color: var(--in
 .members li { padding: .6rem .8rem; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; gap: .2rem; font-weight: 700; }
 
 /* Game table */
+/* Seats around a shared table. Every field is the same size: a 4 × 2 grid of sheep slots (room for 7+). */
+.table {
+  --seat-card: 36px;                          /* card width inside a field */
+  --slot-w: calc(var(--seat-card) * 2 + 14px); /* one completed sheep */
+  --slot-h: calc(var(--seat-card) * 1.9 + 12px);    /* card + tucked modifier + padding */
+  --cols: 4; --rows: 2;
+  --field-w: calc(var(--slot-w) * var(--cols) + 6px * (var(--cols) - 1));
+  --field-h: calc(var(--slot-h) * var(--rows) + 6px * (var(--rows) - 1));
+  --seat-w: calc(var(--field-w) + 26px);
+  display: grid; gap: 10px 14px; padding: 12px; border-radius: 36px;
+  background: var(--pink-2);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* Diamond: left and right seats sit at mid-height, beside the top seat / table / bottom seat column. */
+  grid-template-areas: "left top right" "left center right" "left bottom right";
+  align-items: center; justify-items: center;
+}
+.seat-top { grid-area: top; } .seat-left { grid-area: left; } .seat-right { grid-area: right; } .seat-bottom { grid-area: bottom; }
+.table-center { grid-area: center; }
+.seat { width: var(--seat-w); max-width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 11px 12px; display: flex; flex-direction: column; gap: 6px; position: relative; transition: box-shadow .2s, border-color .2s; }
+/* A bar on the edge facing the player's chair shows where each player sits (drawn outside the layout). */
+.seat { --edge: var(--pink-3); }
+.seat::before { content: ""; position: absolute; background: var(--edge); border-radius: 6px; }
+.seat-top::before { top: 0; left: 18px; right: 18px; height: 6px; border-radius: 0 0 6px 6px; }
+.seat-bottom::before { bottom: 0; left: 18px; right: 18px; height: 6px; border-radius: 6px 6px 0 0; }
+.seat-left::before { left: 0; top: 18px; bottom: 18px; width: 6px; border-radius: 0 6px 6px 0; }
+.seat-right::before { right: 0; top: 18px; bottom: 18px; width: 6px; border-radius: 6px 0 0 6px; }
+.seat-bottom { flex-direction: column-reverse; }
+.seat.turn { --edge: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(164,56,93,.18), 0 10px 24px rgba(90,40,60,.14); }
+.seat.me { background: #fffdfe; }
+.seat.gone { opacity: .55; }
+.seat.open { min-height: calc(var(--field-h) + 52px); border: 2px dashed var(--pink-3); background: transparent; align-items: center; justify-content: center; color: var(--muted); font: 600 .95rem/1 var(--head); }
+.seat-head { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; font-family: var(--head); min-height: 30px; }
+.seat-name { font-weight: 600; font-size: 1.02rem; overflow-wrap: anywhere; }
+.seat .stat { font: 700 .8rem/1 var(--body); color: var(--muted); }
+.tag.next { background: var(--t-chal-bg); color: var(--t-chal); }
+.seat .prot { margin: 0; min-height: 0; }
+.seat .prot:empty { display: none; }
+.seat .field {
+  display: grid; grid-template-columns: repeat(var(--cols), var(--slot-w)); grid-auto-rows: var(--slot-h);
+  gap: 6px; width: var(--field-w); max-width: 100%; height: var(--field-h); min-height: 0; margin: 0;
+  overflow-y: auto; align-items: end; justify-items: center; align-content: start;
+  background: #fdf2f6;
+  border-radius: 12px; padding: 0;
+}
+.seat .field.empty { display: grid; place-items: center; }
+.seat .field.empty .fine { grid-column: 1 / -1; }
+.seat .sheep { padding: 3px; }
+.seat .card.small { --card-w: var(--seat-card); border-radius: 4px; }
+.seat .sheep .mod { margin-bottom: calc(var(--seat-card) * -0.62); }
+.seat .sheep .mod img { width: calc(var(--seat-card) * .72); }
+.seat .newtag { top: -6px; left: -4px; font-size: .6rem; padding: .18rem .35rem; }
+.seat .sheep .pts { font-size: .65rem; top: -4px; right: -4px; }
+
+.table-center { width: 100%; min-width: var(--seat-w); background: var(--pink); border-radius: 999px / 46%; padding: 14px 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.table-center:has(.pending) { border-radius: 28px; }
+.piles { display: flex; align-items: center; gap: 18px; }
+.pile { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: default; }
+.pilebtn { cursor: pointer; }
+.pilebtn:hover .card { transform: translateY(-3px); }
+.pile .card.small { --card-w: 46px; }
+.pile .card.emptypile { background: transparent; border: 2px dashed var(--pink-3); box-shadow: none; }
+.pile-label { font: 700 .78rem/1 var(--body); color: var(--accent-dark); }
+.turn-pointer { width: 64px; height: 64px; border-radius: 50%; background: #fff; display: grid; place-items: center; color: var(--accent); box-shadow: 0 2px 8px rgba(90,40,60,.15); }
+.turn-pointer .arrow { display: grid; place-items: center; transition: transform .35s ease; }
+.table-center .status { background: rgba(255,255,255,.75); border-color: transparent; padding: .55rem .9rem; font-size: .98rem; }
+.table-center .status.mine { background: #fff; border-color: var(--accent); }
+.table-center .pending { width: 100%; max-width: 520px; padding: .9rem; }
+
+@media (min-width: 1600px) { .table { --seat-card: 42px; } }
+/* Narrower screens: seats left/right side by side, table in the middle row below them. */
+@media (max-width: 1180px) {
+  .table { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "top top" "left right" "center center" "bottom bottom"; }
+  .table-center { border-radius: 28px; min-width: 0; }
+}
+/* Phones: one column in clockwise order after you, then the table, then you. */
+@media (max-width: 760px) {
+  .table { --seat-card: 34px; --cols: 3; --rows: 3; padding: 10px; border-radius: 22px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "left" "top" "right" "center" "bottom"; }
+  .seat.open { display: none; }
+  .turn-pointer { display: none; }
+}
+
 .game { display: grid; gap: .9rem; }
 .game > *, .handwrap, .hand, .field { min-width: 0; }
 .gamebar { display: flex; gap: .45rem; align-items: center; flex-wrap: wrap; }
@@ -169,7 +250,7 @@ button.card:disabled { filter: grayscale(.7) opacity(.6); cursor: not-allowed; }
 .sheep .halves .card:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .sheep .halves .card:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
-.handwrap { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem; position: sticky; bottom: 0; z-index: 3; box-shadow: 0 -6px 18px rgba(90,40,60,.07); }
+.handwrap { --card-w: 80px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem; position: sticky; bottom: 0; z-index: 3; box-shadow: 0 -6px 18px rgba(90,40,60,.07); }
 .hand { display: flex; gap: .6rem; overflow-x: auto; padding: .8rem .2rem .4rem; scroll-snap-type: x proximity; }
 .hand > * { scroll-snap-align: start; }
 .hcell { display: flex; flex-direction: column; align-items: center; gap: .35rem; width: var(--card-w); }

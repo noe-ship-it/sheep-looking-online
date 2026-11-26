@@ -19,9 +19,10 @@ http.createServer((req, res) => {
   if (!room?.game) { res.writeHead(404); return res.end('no game'); }
   const g = room.game;
   if (url.pathname === '/rig4') {
-    const cols = [['orange', 'pink'], ['cyan'], ['purple', 'lime'], ['brown']];
+    const cols = [['orange', 'pink'], ['cyan'], ['purple', 'lime', 'blue', 'yellow', 'white', 'black', 'beige'], ['brown']];
     g.players.forEach((p, i) => {
       p.field = (cols[i] ?? []).map((c, k) => ({ id: `s9${i}${k}`, cards: [C('head', c), C('butt', c)], modifier: null }));
+      if (i === 2) { p.field[1] = { id: 's9mod', cards: [C('head', 'lime'), C('butt', 'green')], modifier: C('paint') }; p.field[6] = { id: 's9rb', cards: [C('head', 'rainbow'), C('butt', 'rainbow')], modifier: null }; }
       p.hand = [C('head', 'grey'), C('wheat')];
     });
     g.players[0].hand = [C('head', 'red'), C('butt', 'red'), C('wolf')];
