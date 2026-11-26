@@ -9,7 +9,7 @@ This is a browser-playable, online multiplayer (2–4 players) version of **"Is 
 - **Quick match** joins public lobbies. A public lobby starts 30 s after the 2nd player connects, or right away at 4. The host can start early.
 - Server-authoritative rules. Clients send *intentions* only. The server validates turns, cards and targets, rolls the coin and shuffles with `crypto`, and sends each player only their own hand.
 - Reconnect: the seat is kept in `localStorage`, so refreshing or losing signal puts you back in your seat.
-- Turn and decision timers: **8 s per turn, restarting every time you play a card**, and 40 s per coin-flip decision. If the player is disconnected, it's 25 s before an automatic move. After 3 minutes disconnected the player is dropped from the game, which continues.
+- Turn and decision timers: **18 s per turn, restarting every time you play a card**, and 40 s per coin-flip decision. If the player is disconnected, it's 25 s before an automatic move. After 3 minutes disconnected the player is dropped from the game, which continues.
 - Safeguards: sanitised names, payload size limits, per-socket rate limiting, join-attempt limits, open-room cap per IP, a strict CSP, no accounts, no chat.
 
 ## Run locally
@@ -46,7 +46,7 @@ Put it behind HTTPS (for example Caddy, nginx or a platform load balancer) and m
 | `PORT` | 3000 | HTTP port |
 | `TRUST_PROXY` | `loopback` | Set to `1` behind one reverse proxy so client IPs are correct for limits |
 | `ALLOWED_ORIGINS` | *(same origin)* | Comma-separated origins, only if you host the client on a different domain |
-| `TURN_SECONDS` / `DECISION_SECONDS` | 8 / 40 | Turn timer (restarts after each card played) / coin-flip decisions |
+| `TURN_SECONDS` / `DECISION_SECONDS` | 18 / 40 | Turn timer (restarts after each card played) / coin-flip decisions |
 | `DISCONNECTED_TURN_SECONDS` / `DROP_AFTER_SECONDS` | 25 / 180 | Disconnect handling |
 | `PUBLIC_AUTOSTART_SECONDS` | 30 | Public lobby countdown |
 | `MAX_ROOMS`, `MAX_ROOMS_PER_IP` | 500, 6 | Abuse limits |

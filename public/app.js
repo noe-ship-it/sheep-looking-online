@@ -20,6 +20,7 @@ const S = {
   sel: new Set(), discardMode: false, effectSel: [], halves: new Map(), recoverSel: [],
   leaveArm: false, busy: false, lastLogN: 0, prefillCode: null,
   sheepSig: null, fresh: new Map(),
+  bubbles: [], lastEvN: null, lastTurnKey: null, lastTick: null,
 };
 const CREDS_KEY = 'sheep:creds';
 const NAME_KEY = 'sheep:name';
@@ -48,7 +49,10 @@ async function act(action) {
   S.busy = true;
   const res = await emit('game:action', { action });
   S.busy = false;
-  if (!res.error) { S.sel.clear(); S.effectSel = []; S.halves.clear(); S.recoverSel = []; S.discardMode = false; }
+  if (!res.error) {
+    S.sel.clear(); S.effectSel = []; S.halves.clear(); S.recoverSel = []; S.discardMode = false;
+    if (action.type === 'makeSheep') sfx.play('pop');
+  }
   render();
   return res;
 }
@@ -74,6 +78,7 @@ socket.on('state', (msg) => {
   if (me?.hand) for (const id of [...S.sel]) if (!me.hand.some((c) => c.id === id)) S.sel.delete(id);
   if (!S.game?.pending || S.game.pending.stage !== 'effect') { S.effectSel = []; S.halves.clear(); S.recoverSel = []; }
   markFreshSheep();
+  processEvents();
   render();
 });
 
@@ -179,9 +184,191 @@ const myPlayer = () => S.game?.players.find((p) => p.id === S.you);
 const playerName = (id) => S.game?.players.find((p) => p.id === id)?.name ?? S.room?.members.find((m) => m.id === id)?.name ?? '?';
 const secondsLeft = () => (S.room?.deadline ? Math.max(0, Math.ceil((S.room.deadline - (Date.now() + S.skew)) / 1000)) : null);
 
+// ---------- action bubbles (consequential events only) ----------
+const BUBBLE_MS = 3800;
+
+/** Turn new log entries that carry an `ev` into bubbles and (at most one) sound per update. */
+function processEvents() {
+  const g = S.game;
+  if (!g) { S.lastEvN = null; S.lastTurnKey = null; return; }
+  const newest = g.log.at(-1)?.n ?? 0;
+  if (S.lastEvN == null || newest < S.lastEvN) { // first state after joining/reloading, or a new game: don't replay history
+    S.lastEvN = newest; S.lastTurnKey = `${g.turnNumber}:${g.turnPlayerId}`; return;
+  }
+  const fresh = g.log.filter((e) => e.n > S.lastEvN && e.ev);
+  S.lastEvN = newest;
+  let sound = null;
+  for (const e of fresh) {
+    const b = describeEvent(e.ev);
+    if (b) addBubble(b);
+    sound = pickSound(sound, soundFor(e.ev));
+  }
+  const turnKey = `${g.turnNumber}:${g.turnPlayerId}`;
+  if (g.phase === 'playing' && turnKey !== S.lastTurnKey && g.turnPlayerId === S.you) sound = pickSound(sound, 'turn');
+  S.lastTurnKey = turnKey;
+  if (sound) sfx.play(sound);
+}
+
+const who = (id) => (id === S.you ? 'You' : playerName(id));
+const whom = (id) => (id === S.you ? 'you' : playerName(id));
+const whose = (id) => (id === S.you ? 'your' : `${playerName(id)}'s`);
+const s1 = (id, verb) => (id === S.you ? verb : `${verb}s`); // "You win" / "Bob wins"
+
+/** Bubble text for a consequential event: placed at the seat it affects, or the table centre. */
+function describeEvent(ev) {
+  const hitsYou = ev.target === S.you && ev.actor !== S.you;
+  const b = (seat, text, extra = {}) => ({ seat, text, art: ev.art, alert: hitsYou, ...extra });
+  switch (ev.kind) {
+    case 'yoink': return b(ev.target, `${who(ev.actor)} yoinked ${ev.count} card${ev.count === 1 ? '' : 's'} from ${whom(ev.target)}!`);
+    case 'wheat': return b(ev.target, `${who(ev.actor)} lured ${whose(ev.target)} sheep with Wheat!`);
+    case 'wolf': return b(ev.target, ev.target === ev.actor ? `${who(ev.actor)} wolfed ${ev.actor === S.you ? 'your' : 'their'} own sheep!` : `Wolf! ${who(ev.actor)} removed ${whose(ev.target)} sheep.`);
+    case 'bodyswap':
+      if (ev.target === ev.actor) return b(ev.actor, `${who(ev.actor)} upgraded to a Full Rainbow Sheep! +2`);
+      return b(ev.target, `${who(ev.actor)} bodyswapped ${whose(ev.target)} sheep${ev.rainbow ? ' into a Full Rainbow!' : '!'}`);
+    case 'rainbow': return b(ev.actor, `${who(ev.actor)} made a Full Rainbow Sheep! +2`);
+    case 'challenge': return b(ev.target, `${who(ev.actor)} ${s1(ev.actor, 'challenge')} ${whom(ev.target)}: ${ITSLAM_EFFECTS[ev.effect].name}!`);
+    case 'flip': return b('center', `${ev.looking ? 'Looking!' : 'Not looking!'} ${who(ev.winner)} ${s1(ev.winner, 'win')} the flip.`,
+      { art: null, coin: ev.looking, alert: ev.loser === S.you, good: ev.winner === S.you });
+    case 'reflip': return b('center', `${who(ev.actor)} played Re-Flip! New guess, new flip.`);
+    case 'finalRound': return b('center', 'Final round! Everyone gets one last turn.', { art: null, alert: true });
+    case 'left': return b(ev.actor, `${playerName(ev.actor)} left the game.`, { art: null });
+    case 'effect': {
+      const seat = ev.target ?? ev.actor;
+      const n = ev.count;
+      const text = {
+        lure2: n ? `${who(ev.actor)} lured ${n} of ${whose(ev.target)} sheep!` : `${whose(ev.target)} field was empty. Nothing to lure.`,
+        remove2: n ? `${who(ev.actor)} removed ${n} of ${whose(ev.target)} sheep!` : `${whose(ev.target)} field was empty. Nothing to remove.`,
+        yoinkHand: `${who(ev.actor)} took ${whose(ev.target)} whole hand (${n} card${n === 1 ? '' : 's'})!`,
+        halve2: n ? `${who(ev.actor)} halved ${n} of ${whose(ev.target)} sheep!` : `${whose(ev.target)} field was empty. Nothing to halve.`,
+        recover1: n ? `${who(ev.actor)} recovered a sheep from the discard pile!` : 'No valid sheep in the discard pile to recover.',
+      }[ev.effect];
+      return text ? b(seat, text.charAt(0).toUpperCase() + text.slice(1)) : null;
+    }
+    default: return null; // 'win' is shown by the end screen
+  }
+}
+
+function addBubble(b) {
+  const now = Date.now();
+  // One bubble per spot: a newer event replaces the older one there. Keep at most 4 on screen.
+  S.bubbles = S.bubbles.filter((x) => x.seat !== b.seat && x.until > now).slice(-3);
+  S.bubbles.push({ ...b, id: `${now}-${Math.random()}`, born: now, until: now + BUBBLE_MS });
+  const ann = document.getElementById('announcer');
+  if (ann) ann.textContent = b.text;
+  setTimeout(render, BUBBLE_MS - 380); // start the fade-out
+  setTimeout(render, BUBBLE_MS + 60);
+}
+
+function bubbleEl(seat) {
+  const b = S.bubbles.find((x) => x.seat === seat && x.until > Date.now());
+  if (!b) return null;
+  const enter = Date.now() - b.born < 350; // animate in once, not on every re-render
+  const leave = b.until - Date.now() < 400;
+  return h('div', { class: `bubble${seat === 'center' ? ' center' : ''}${b.alert ? ' alert' : ''}${b.good ? ' good' : ''}${enter ? ' enter' : ''}${leave ? ' leave' : ''}`, 'aria-hidden': 'true' },
+    b.art ? h('img', { src: `/cards/${b.art}.webp`, alt: '' }) : b.coin != null ? h('span', { class: 'bubble-coin' }, b.coin ? '👀' : '🍑') : null,
+    h('span', {}, b.text));
+}
+
+// ---------- sound effects (synthesised with Web Audio; no files, respects the Sound toggle) ----------
+const SOUND_PRIORITY = ['win', 'lose', 'final', 'alert', 'flipLose', 'flipWin', 'wolf', 'challenge', 'rainbow', 'yoink', 'wheat', 'swap', 'effect', 'coin', 'turn', 'pop', 'tick'];
+const pickSound = (a, b) => (!a ? b : !b ? a : SOUND_PRIORITY.indexOf(a) <= SOUND_PRIORITY.indexOf(b) ? a : b);
+
+function soundFor(ev) {
+  const toYou = ev.target === S.you && ev.actor !== S.you;
+  switch (ev.kind) {
+    case 'win': return ev.actor === S.you ? 'win' : 'lose';
+    case 'finalRound': return 'final';
+    case 'flip': return ev.winner === S.you ? 'flipWin' : ev.loser === S.you ? 'flipLose' : 'coin';
+    case 'reflip': return 'coin';
+    case 'wolf': return 'wolf';
+    case 'challenge': return toYou ? 'alert' : 'challenge';
+    case 'effect': return toYou ? 'alert' : 'effect';
+    case 'rainbow': return 'rainbow';
+    case 'bodyswap': return ev.rainbow ? 'rainbow' : toYou ? 'alert' : 'swap';
+    case 'yoink': return toYou ? 'alert' : 'yoink';
+    case 'wheat': return toYou ? 'alert' : 'wheat';
+    default: return null;
+  }
+}
+
+const sfx = (() => {
+  const KEY = 'sheep:sound';
+  let enabled = true;
+  try { enabled = localStorage.getItem(KEY) !== 'off'; } catch {}
+  let ctx = null; let master = null; let lastAt = 0; const lastBy = {};
+  function audio() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.2; master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }
+  // Browsers only allow audio after a user gesture: unlock on the first tap/click/key.
+  const unlock = () => { if (enabled) audio(); };
+  addEventListener('pointerdown', unlock, { passive: true });
+  addEventListener('keydown', unlock);
+  function note(freq, at, dur, { type = 'triangle', vol = 1, to = null, lp = null } = {}) {
+    const t0 = ctx.currentTime + at;
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    let node = o;
+    if (lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); node = f; }
+    node.connect(g); g.connect(master);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  const SOUNDS = {
+    pop: () => note(520, 0, 0.09, { to: 820, vol: 0.6 }),
+    tick: () => note(1250, 0, 0.04, { type: 'sine', vol: 0.35 }),
+    turn: () => { note(659, 0, 0.14, { type: 'sine' }); note(880, 0.13, 0.22, { type: 'sine' }); },
+    swap: () => { note(440, 0, 0.07, { vol: 0.6 }); note(660, 0.07, 0.09, { vol: 0.6 }); },
+    wheat: () => { note(392, 0, 0.1, { vol: 0.7 }); note(523, 0.09, 0.16, { vol: 0.7 }); },
+    yoink: () => note(260, 0, 0.2, { type: 'square', to: 1100, vol: 0.3, lp: 2400 }),
+    wolf: () => { note(196, 0, 0.42, { type: 'sawtooth', to: 98, vol: 0.5, lp: 700 }); note(147, 0.05, 0.4, { type: 'sawtooth', to: 82, vol: 0.35, lp: 500 }); },
+    challenge: () => [523, 659, 784].forEach((f, i) => note(f, i * 0.09, 0.14)),
+    alert: () => { note(587, 0, 0.16, { type: 'square', vol: 0.3, lp: 1800 }); note(440, 0.17, 0.24, { type: 'square', vol: 0.3, lp: 1800 }); },
+    coin: () => [0, 0.06, 0.12].forEach((t, i) => note(1500 + i * 200, t, 0.05, { type: 'sine', vol: 0.4 })),
+    flipWin: () => { SOUNDS.coin(); note(784, 0.22, 0.12); note(1047, 0.33, 0.24); },
+    flipLose: () => { SOUNDS.coin(); note(392, 0.22, 0.18); note(294, 0.38, 0.3); },
+    effect: () => { note(494, 0, 0.1); note(392, 0.1, 0.18); },
+    rainbow: () => [523, 659, 784, 1047, 1319].forEach((f, i) => note(f, i * 0.07, 0.18, { type: 'sine', vol: 0.7 })),
+    final: () => [392, 523, 659].forEach((f, i) => note(f, i * 0.16, 0.3, { vol: 0.8 })),
+    win: () => [523, 659, 784, 1047].forEach((f, i) => note(f, i * 0.14, i === 3 ? 0.6 : 0.2, { vol: 0.8 })),
+    lose: () => [440, 392, 330].forEach((f, i) => note(f, i * 0.18, 0.3, { vol: 0.6 })),
+  };
+  return {
+    get enabled() { return enabled; },
+    set(v) { enabled = !!v; try { localStorage.setItem(KEY, enabled ? 'on' : 'off'); } catch {} if (enabled) { audio(); SOUNDS.pop && this.play('pop', true); } },
+    play(name, force = false) {
+      if (!enabled || !SOUNDS[name]) return;
+      const now = performance.now();
+      if (!force && (now - lastAt < 120 || now - (lastBy[name] ?? 0) < 450)) return; // no stacking or rapid repeats
+      if (!audio() || ctx.state !== 'running') return; // not unlocked yet: stay silent rather than queue sounds
+      lastAt = now; lastBy[name] = now;
+      try { SOUNDS[name](); } catch {}
+    },
+  };
+})();
+
+const soundBtn = document.getElementById('btn-sound');
+function syncSoundBtn() {
+  soundBtn.setAttribute('aria-pressed', String(sfx.enabled));
+  soundBtn.classList.toggle('off', !sfx.enabled);
+  soundBtn.querySelector('.sound-label').textContent = sfx.enabled ? 'Sound on' : 'Sound off';
+}
+soundBtn.addEventListener('click', () => { sfx.set(!sfx.enabled); syncSoundBtn(); });
+syncSoundBtn();
+
 // ---------- render ----------
 function render() {
   setConn();
+  const now = Date.now();
+  S.bubbles = S.bubbles.filter((b) => b.until > now);
   const focusId = document.activeElement?.id;
   app.replaceChildren(!S.room ? homeView() : S.room.status === 'lobby' ? lobbyView() : gameView());
   if (focusId) document.getElementById(focusId)?.focus();
@@ -189,6 +376,11 @@ function render() {
 setInterval(() => {
   const t = document.getElementById('timer');
   if (t) { const s = secondsLeft(); t.textContent = s == null ? '' : `⏱ ${s}s`; t.classList.toggle('urgent', s != null && s <= 3); }
+  // Last-3-seconds tick, only when the game is waiting on you.
+  const sl = secondsLeft();
+  if (S.game?.phase === 'playing' && S.game.waitingOn === S.you && sl != null && sl >= 1 && sl <= 3) {
+    if (S.lastTick !== sl) { S.lastTick = sl; sfx.play('tick'); }
+  } else S.lastTick = null;
   const a = document.getElementById('autostart');
   if (a && S.room?.autoStartAt) a.textContent = `Starting automatically in ${Math.max(0, Math.ceil((S.room.autoStartAt - Date.now() - S.skew) / 1000))}s`;
 }, 500);
@@ -330,13 +522,15 @@ function seatEl(p, pos, nextId) {
       h('span', { class: 'stat', title: 'Cards in hand' }, `✋ ${p.handCount}`),
       h('span', { class: 'score' }, `${p.score} pt${p.score === 1 ? '' : 's'}`)),
     protections(p),
-    fieldEl(p));
+    fieldEl(p),
+    bubbleEl(p.id));
 }
 
 function tableCenter(g, seatOf) {
   const turnPos = seatOf.get(g.turnPlayerId) ?? 'bottom';
   const top = g.discard.at(-1);
   return h('div', { class: 'table-center' },
+    bubbleEl('center'),
     h('div', { class: 'piles' },
       h('div', { class: 'pile' },
         h('div', { class: 'card small', role: 'img', 'aria-label': `Draw pile, ${g.deckCount} cards` }, g.deckCount ? h('img', { src: '/cards/back.webp', alt: '' }) : null),

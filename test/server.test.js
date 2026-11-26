@@ -105,6 +105,30 @@ test('private room: create, join by code, 3-player full game, hidden hands, rema
   [a, b, c].forEach((s) => s.close());
 });
 
+test('turn timer: 18 s by default, shown to clients, and an idle turn ends automatically', async () => {
+  assert.equal(config.turnMs, 18000);
+  const [a, b] = [client(), client()];
+  await Promise.all([a.ready, b.ready]);
+  const ra = await a.call('room:create', { name: 'A' });
+  await b.call('room:join', { code: ra.code, name: 'B' });
+  await a.call('room:start');
+  await until(() => a.last?.game && b.last?.game);
+  const left = a.last.room.deadline - a.last.room.serverNow; // what the client's countdown starts from
+  assert.ok(left > 17500 && left <= 18000, `deadline ${left}ms`);
+  // Timeout behaviour (the existing rule, with the timeout shortened for the test): the idle player's turn ends and play moves on.
+  const first = a.last.game.turnPlayerId;
+  const room = srv.manager.get(ra.code);
+  const old = config.turnMs; config.turnMs = 300;
+  room.deadlineKey = null; srv.manager.armTimer(room);
+  await until(() => a.last.game.turnPlayerId !== first, 3000);
+  assert.ok(a.last.game.log.some((e) => /said "Baa!"/.test(e.text)));
+  // The next turn gets a fresh deadline from the (restored) 18 s setting, which the client counts down from.
+  config.turnMs = old;
+  a.close(); b.close();
+  srv.manager.destroy(srv.manager.get(ra.code)); // don't count towards the per-network open-room limit
+
+});
+
 test('room capacity is 4', async () => {
   const cs = Array.from({ length: 5 }, client);
   await Promise.all(cs.map((s) => s.ready));

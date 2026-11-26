@@ -6,7 +6,7 @@ import {
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const config = {
-  turnMs: Number(process.env.TURN_SECONDS ?? 8) * 1000,
+  turnMs: Number(process.env.TURN_SECONDS ?? 18) * 1000,   // time to choose cards on your turn
   decisionMs: Number(process.env.DECISION_SECONDS ?? 40) * 1000,
   disconnectedTurnMs: Number(process.env.DISCONNECTED_TURN_SECONDS ?? 25) * 1000,
   dropAfterMs: Number(process.env.DROP_AFTER_SECONDS ?? 180) * 1000,

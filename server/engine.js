@@ -1,7 +1,7 @@
 // Authoritative rules engine. Pure state transitions; all randomness through `rng`.
 import {
   buildDeck, isHalf, isModifier, isValidSheep, isNaturalMatch, sheepPoints,
-  isDoubleHeadFranken, isDoubleButtFranken, cardLabel, ITSLAM_EFFECTS, canBodyswap, isBodyswappable,
+  isDoubleHeadFranken, isDoubleButtFranken, cardLabel, ITSLAM_EFFECTS, canBodyswap, isBodyswappable, isFullRainbow,
 } from '../shared/cards.js';
 
 export const HAND_START = 5;
@@ -49,8 +49,12 @@ export function createGame(players, rng = Math.random, opts = {}) {
   return state;
 }
 
-function log(state, text) {
-  state.log.push({ n: ++state.seq, text });
+/**
+ * Append to the game log. `ev` (optional) marks a consequential event with structured data
+ * that clients use for action bubbles and sounds; routine entries carry none.
+ */
+function log(state, text, ev) {
+  state.log.push(ev ? { n: ++state.seq, text, ev } : { n: ++state.seq, text });
   if (state.log.length > 200) state.log.shift();
 }
 
@@ -116,7 +120,7 @@ function advanceTurn(state) {
     let t = state.turn;
     for (let i = 0; i < state.players.length; i++) { t = (t + 1) % state.players.length; if (!state.players[t].left) q.push(state.players[t].id); }
     state.finalQueue = q;
-    log(state, 'Final round: everyone gets one final turn.');
+    log(state, 'Final round: everyone gets one final turn.', { kind: 'finalRound' });
   }
   if (state.finalQueue) {
     const next = state.finalQueue.shift();
@@ -145,7 +149,7 @@ function endGame(state, reason = 'The final round is over.', rng = Math.random) 
   const winner = tied.length > 1 ? tied[Math.floor(rng() * tied.length)] : tied[0];
   state.result = { scores, winners: [winner], tiedIds: tied.length > 1 ? tied : [], reason };
   if (tied.length > 1) log(state, `${reason} Tie at ${best} points between ${tied.map((id) => player(state, id).name).join(' & ')}. The sheep coin decides…`);
-  log(state, `Winner: ${player(state, winner).name} with ${best} points!`);
+  log(state, `Winner: ${player(state, winner).name} with ${best} points!`, { kind: 'win', actor: winner, tie: tied.length > 1 });
 }
 
 // ---------- Public action dispatcher ----------
@@ -185,7 +189,7 @@ function makeSheep(state, me, { cardIds, modifierId }) {
   for (const id of [cardIds[0], cardIds[1], modifierId].filter(Boolean)) takeFromHand(me, id);
   const sheep = { id: `s${state.nextSheepId++}`, cards: [a, b], modifier: m };
   me.field.push(sheep);
-  log(state, `${me.name} made a sheep: ${sheepName(sheep)}.`);
+  log(state, `${me.name} made a sheep: ${sheepName(sheep)}.`, isFullRainbow(sheep) ? { kind: 'rainbow', actor: me.id, art: a.art } : undefined);
 }
 
 function invalidSheepReason(a, b, m) {
@@ -212,7 +216,8 @@ function bodyswap(state, me, { ownerId, sheepId, replaceCardId, handCardId }) {
   let extra = '';
   if (sheep.modifier) { me.hand.push(sheep.modifier); extra = ` and the ${cardLabel(sheep.modifier)} card`; sheep.modifier = null; }
   const where = owner.id === me.id ? 'their own' : `${owner.name}'s`;
-  log(state, `${me.name} bodyswapped a sheep in ${where} field with ${article(cardLabel(newCard))}, taking the ${cardLabel(removed)}${extra}.`);
+  const ev = owner.id !== me.id || isFullRainbow(sheep) ? { kind: 'bodyswap', actor: me.id, target: owner.id, art: newCard.art, rainbow: isFullRainbow(sheep) } : undefined;
+  log(state, `${me.name} bodyswapped a sheep in ${where} field with ${article(cardLabel(newCard))}, taking the ${cardLabel(removed)}${extra}.`, ev);
 }
 
 function opponent(state, me, targetId) {
@@ -229,7 +234,7 @@ function yoink(state, me, { cardId, targetId }, rng) {
   state.discard.push(takeFromHand(me, cardId));
   const n = Math.min(2, t.hand.length);
   for (let i = 0; i < n; i++) me.hand.push(t.hand.splice(Math.floor(rng() * t.hand.length), 1)[0]);
-  log(state, `${me.name} played Yoink! and stole ${n} card${n > 1 ? 's' : ''} from ${t.name}.`);
+  log(state, `${me.name} played Yoink! and stole ${n} card${n > 1 ? 's' : ''} from ${t.name}.`, { kind: 'yoink', actor: me.id, target: t.id, count: n, art: 'yoink' });
 }
 
 export function wheatProtected(p) { return p.field.some(isDoubleButtFranken); }
@@ -249,7 +254,8 @@ function wheat(state, me, { cardId, targetId, sheepId }) {
   state.discard.push(takeFromHand(me, cardId));
   const s = removeSheep(t, sheepId);
   me.field.push(s);
-  log(state, t.id === me.id ? `${me.name} used Wheat on their own ${sheepName(s)} (it stays put).` : `${me.name} used Wheat to lure ${sheepName(s)} from ${t.name}.`);
+  log(state, t.id === me.id ? `${me.name} used Wheat on their own ${sheepName(s)} (it stays put).` : `${me.name} used Wheat to lure ${sheepName(s)} from ${t.name}.`,
+    t.id === me.id ? undefined : { kind: 'wheat', actor: me.id, target: t.id, art: 'wheat' });
 }
 
 function wolf(state, me, { cardId, targetId, sheepId }) {
@@ -260,7 +266,7 @@ function wolf(state, me, { cardId, targetId, sheepId }) {
   state.discard.push(takeFromHand(me, cardId));
   const s = removeSheep(t, sheepId);
   state.discard.push(...sheepCards(s));
-  log(state, `${me.name} sent a Wolf after ${t.id === me.id ? 'their own' : `${t.name}'s`} ${sheepName(s)}. It's gone!`);
+  log(state, `${me.name} sent a Wolf after ${t.id === me.id ? 'their own' : `${t.name}'s`} ${sheepName(s)}. It's gone!`, { kind: 'wolf', actor: me.id, target: t.id, art: 'wolf' });
 }
 
 function playItslam(state, me, { cardId, targetId }) {
@@ -274,7 +280,7 @@ function playItslam(state, me, { cardId, targetId }) {
     type: 'flip', stage: 'guess', effect: card.effect, attackerId: me.id, defenderId: t.id,
     guess: null, coin: null, winnerId: null, loserId: null, flips: 0, deadlineMs: null,
   };
-  log(state, `${me.name} played "Is That Sheep Looking At Me?" (${ITSLAM_EFFECTS[card.effect].name}) at ${t.name}!`);
+  log(state, `${me.name} played "Is That Sheep Looking At Me?" (${ITSLAM_EFFECTS[card.effect].name}) at ${t.name}!`, { kind: 'challenge', actor: me.id, target: t.id, effect: card.effect, art: card.art });
 }
 
 function endTurn(state, me, { discardIds = [] }) {
@@ -303,7 +309,8 @@ function handlePending(state, me, action, rng) {
     pd.winnerId = right ? pd.attackerId : pd.defenderId;
     pd.loserId = right ? pd.defenderId : pd.attackerId;
     const a = player(state, pd.attackerId);
-    log(state, `${a.name} guessed "${pd.guess ? 'looking' : 'not looking'}"… the sheep ${pd.coin ? 'IS' : 'is NOT'} looking! ${right ? `${a.name} wins the flip.` : `Wrong! ${player(state, pd.defenderId).name} gets the effect.`}`);
+    log(state, `${a.name} guessed "${pd.guess ? 'looking' : 'not looking'}"… the sheep ${pd.coin ? 'IS' : 'is NOT'} looking! ${right ? `${a.name} wins the flip.` : `Wrong! ${player(state, pd.defenderId).name} gets the effect.`}`,
+      { kind: 'flip', actor: pd.attackerId, target: pd.defenderId, looking: pd.coin, winner: pd.winnerId, loser: pd.loserId });
     pd.stage = 'reflip';
     return maybeSkipReflip(state, rng);
   }
@@ -314,7 +321,7 @@ function handlePending(state, me, action, rng) {
       const c = peekHand(me, action.cardId);
       if (c.kind !== 'reflip') fail('That is not a Re-flip card');
       state.discard.push(takeFromHand(me, action.cardId));
-      log(state, `${me.name} played Re-flip! New guess, new flip.`);
+      log(state, `${me.name} played Re-flip! New guess, new flip.`, { kind: 'reflip', actor: me.id, art: 'reflip' });
       pd.stage = 'guess'; pd.guess = null; pd.coin = null; pd.winnerId = null; pd.loserId = null; pd.reflipAsk = null;
       return;
     }
@@ -401,13 +408,14 @@ function resolveEffect(state, choice, _rng) {
         const s = removeSheep(loser, id);
         if (pd.effect === 'lure2') winner.field.push(s); else state.discard.push(...sheepCards(s));
       }
-      log(state, need === 0 ? `${loser.name} had no sheep — nothing happens.` : `${winner.name} ${pd.effect === 'lure2' ? 'lured' : 'removed'} ${need} sheep from ${loser.name}'s field.`);
+      log(state, need === 0 ? `${loser.name} had no sheep — nothing happens.` : `${winner.name} ${pd.effect === 'lure2' ? 'lured' : 'removed'} ${need} sheep from ${loser.name}'s field.`,
+        { kind: 'effect', effect: pd.effect, actor: winner.id, target: loser.id, count: need, art: `itslam-${pd.effect}` });
       break;
     }
     case 'yoinkHand': {
       const n = loser.hand.length;
       winner.hand.push(...loser.hand.splice(0));
-      log(state, `${winner.name} yoinked ${loser.name}'s entire hand (${n} card${n === 1 ? '' : 's'})!`);
+      log(state, `${winner.name} yoinked ${loser.name}'s entire hand (${n} card${n === 1 ? '' : 's'})!`, { kind: 'effect', effect: pd.effect, actor: winner.id, target: loser.id, count: n, art: 'itslam-yoinkHand' });
       break;
     }
     case 'halve2': {
@@ -426,13 +434,14 @@ function resolveEffect(state, choice, _rng) {
         if (s.modifier) winner.hand.push(s.modifier);
         loser.hand.push(left);
       }
-      log(state, need ? `${winner.name} halved ${need} of ${loser.name}'s sheep. ${loser.name} picks up the leftovers.` : `${loser.name} had no sheep to halve.`);
+      log(state, need ? `${winner.name} halved ${need} of ${loser.name}'s sheep. ${loser.name} picks up the leftovers.` : `${loser.name} had no sheep to halve.`,
+        { kind: 'effect', effect: pd.effect, actor: winner.id, target: loser.id, count: need, art: 'itslam-halve2' });
       break;
     }
     case 'recover1': {
       if (choice.recover == null) {
         if (discardHasValidSheep(state.discard)) fail('Pick a valid sheep from the discard pile');
-        log(state, `No valid sheep in the discard pile for ${winner.name} to recover.`);
+        log(state, `No valid sheep in the discard pile for ${winner.name} to recover.`, { kind: 'effect', effect: 'recover1', actor: winner.id, count: 0, art: 'itslam-recover1' });
         break;
       }
       const { cardIds, modifierId } = choice.recover;
@@ -444,7 +453,7 @@ function resolveEffect(state, choice, _rng) {
       for (const c of [a, b, m]) if (c) delete c.faceDown;
       const sheep = { id: `s${state.nextSheepId++}`, cards: [a, b], modifier: m };
       winner.field.push(sheep);
-      log(state, `${winner.name} recovered ${sheepName(sheep)} from the discard pile.`);
+      log(state, `${winner.name} recovered ${sheepName(sheep)} from the discard pile.`, { kind: 'effect', effect: 'recover1', actor: winner.id, count: 1, art: 'itslam-recover1' });
       break;
     }
     default: fail('Unknown effect');
@@ -515,7 +524,7 @@ export function playerLeaves(state, playerId, rng = Math.random) {
   let guard = 0;
   while (state.phase === 'playing' && state.pending && (wasTurn || waitingOn(state) === playerId) && guard++ < 10) autoAct(state, rng);
   p.left = true;
-  log(state, `${p.name} left the game.`);
+  log(state, `${p.name} left the game.`, { kind: 'left', actor: p.id });
   if (state.finalQueue) state.finalQueue = state.finalQueue.filter((id) => id !== playerId);
   if (activePlayers(state).length < MIN_PLAYERS) return endGame(state, 'Not enough players remain.', state.rng);
   if (wasTurn) advanceTurn(state);

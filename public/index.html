@@ -16,11 +16,13 @@
     <nav class="topbar-right" aria-label="Main">
       <button id="btn-rules" class="navlink" type="button">How to play</button>
       <button id="btn-types" class="navlink" type="button">Card Types</button>
+      <button id="btn-sound" class="navlink sound-btn" type="button" aria-pressed="true" title="Turn sound effects on or off"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="cross" d="m16 9 6 6m0-6-6 6"/></svg><span class="sound-label">Sound on</span></button>
       <span id="conn" class="pill" role="status" aria-live="polite">Connecting…</span>
     </nav>
   </header>
   <main id="app" tabindex="-1"><p class="loading">Loading…</p></main>
   <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
+  <div id="announcer" class="sr-only" aria-live="polite"></div>
 
   <dialog id="types-dialog" aria-labelledby="types-dialog-title">
     <form method="dialog" class="dialog-close"><button class="btn ghost small" aria-label="Close card types">✕</button></form>
@@ -40,7 +42,7 @@
         <li><b>Play or pass:</b> make as many moves as you like, in any order, or do nothing at all.</li>
         <li><b>Baa:</b> if you have more than 7 cards, discard face down until you have 7. Challenge cards can’t be discarded. Then say “Baa!” to end your turn.</li>
       </ol>
-      <p class="fine">Online timer: you get 8 seconds to act. The clock restarts every time you play a card. If it runs out, your turn ends automatically.</p>
+      <p class="fine">Online timer: you get 18 seconds to choose and play cards. The clock restarts every time you play a card. If it runs out, your turn ends automatically (and if you hold more than 7 cards, random non-challenge cards are discarded for you).</p>
       <h3>Making sheep</h3>
       <ul>
         <li><b>Basic Sheep:</b> a head and a butt of the same colour. Worth 1 point.</li>

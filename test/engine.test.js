@@ -372,3 +372,33 @@ test('hand-limit discards go face down and stay hidden from other players', () =
   const v = viewFor(g, 'p1');
   assert.deepEqual(v.discard.at(-1), { id: d.id, faceDown: true });
 });
+
+test('consequential events carry structured data for bubbles/sounds; routine ones do not', () => {
+  const g = setup();
+  const [a, b] = [H('red'), B('red')];
+  const wolf = C('wolf'); const target = sheep(g, H('cyan'), B('cyan'));
+  g.players[1].field = [target];
+  g.players[0].hand = [a, b, wolf];
+  applyAction(g, 'p0', { type: 'makeSheep', cardIds: [a.id, b.id] });
+  assert.equal(g.log.at(-1).ev, undefined); // ordinary sheep: no bubble
+  applyAction(g, 'p0', { type: 'wolf', cardId: wolf.id, targetId: 'p1', sheepId: target.id });
+  assert.deepEqual(g.log.at(-1).ev, { kind: 'wolf', actor: 'p0', target: 'p1', art: 'wolf' });
+  const rh = H('rainbow'); const rb = B('rainbow'); g.players[0].hand = [rh, rb];
+  applyAction(g, 'p0', { type: 'makeSheep', cardIds: [rh.id, rb.id] });
+  assert.equal(g.log.at(-1).ev.kind, 'rainbow');
+  applyAction(g, 'p0', { type: 'endTurn', discardIds: [] });
+  assert.ok(g.log.slice(-2).every((e) => !e.ev)); // "Baa" and turn draw are routine
+});
+
+test('flip and challenge effects emit events naming winner and loser', () => {
+  const { g, card } = itslamGame('yoinkHand');
+  g.players[1].hand = [H('red')];
+  applyAction(g, 'p0', { type: 'itslam', cardId: card.id, targetId: 'p1' });
+  assert.equal(g.log.at(-1).ev.kind, 'challenge');
+  applyAction(g, 'p0', { type: 'guess', looking: true }, seq(0.1));
+  const evs = g.log.filter((e) => e.ev).map((e) => e.ev);
+  const flip = evs.find((e) => e.kind === 'flip');
+  assert.deepEqual([flip.winner, flip.loser, flip.looking], ['p0', 'p1', true]);
+  const eff = evs.find((e) => e.kind === 'effect');
+  assert.deepEqual([eff.effect, eff.actor, eff.target, eff.count], ['yoinkHand', 'p0', 'p1', 1]);
+});
