@@ -36,7 +36,7 @@ export const CARD_INFO = {
   wheat: { name: 'Wheat', text: 'Lure 1 sheep from an opponent\'s field into yours. Blocked by a double-butted frankensheep.' },
   wolf: { name: 'Wolf', text: 'Discard 1 sheep from an opponent\'s field. Blocked by a double-headed frankensheep.' },
   yoink: { name: 'Yoink!', text: 'Blindly steal 2 cards from an opponent\'s hand.' },
-  reflip: { name: 'Re-Flip', text: 'After a coin flip goes against you: force a new guess and a new flip.' },
+  reflip: { name: 'Re-Flip', text: 'After any coin flip, force a new guess and a new flip, even if it doesn\'t directly affect you.' },
   itslam: { name: 'Is That Sheep Looking At Me?', text: 'Max 1 per turn. Target an opponent, guess the coin. Right: you get the effect. Wrong: they use it on you. −3 points each if still in hand at the end.' },
 };
 
