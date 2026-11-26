@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Is That Sheep Looking At Me? — Online</title>
   <meta name="description" content="Play the Is That Sheep Looking At Me? card game online with 2–4 friends. Fan-made, unofficial.">
-  <meta name="theme-color" content="#f7d6e4">
+  <meta name="theme-color" content="#f7c8d5">
+  <link rel="preload" href="/fonts/fredoka-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Home">🐑 <span>Sheep Looking Online</span></a>
-    <div class="topbar-right">
+    <a class="brand" href="/" aria-label="Is That Sheep Looking At Me? — home">Is That Sheep Looking At Me?</a>
+    <nav class="topbar-right" aria-label="Main">
+      <button id="btn-rules" class="navlink" type="button">How to play</button>
+      <button id="btn-types" class="navlink" type="button">Card Types</button>
       <span id="conn" class="pill" role="status" aria-live="polite">Connecting…</span>
-      <button id="btn-rules" class="btn ghost small" type="button">How to play</button>
-    </div>
+    </nav>
   </header>
   <main id="app" tabindex="-1"><p class="loading">Loading…</p></main>
   <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
+
+  <dialog id="types-dialog" aria-labelledby="types-dialog-title">
+    <form method="dialog" class="dialog-close"><button class="btn ghost small" aria-label="Close card types">✕</button></form>
+    <div id="types-dialog-body"></div>
+  </dialog>
 
   <dialog id="rules-dialog" aria-labelledby="rules-title">
     <form method="dialog" class="dialog-close"><button class="btn ghost small" aria-label="Close how to play">✕</button></form>

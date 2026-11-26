@@ -181,7 +181,7 @@ test('serves the client, room links and health check', async () => {
   const home = await fetch(url + '/');
   assert.equal(home.status, 200);
   assert.match(home.headers.get('content-security-policy'), /default-src 'self'/);
-  assert.match(await (await fetch(url + '/r/ABCDE')).text(), /Sheep Looking Online/);
+  assert.match(await (await fetch(url + '/r/ABCDE')).text(), /Is That Sheep Looking At Me/);
   assert.equal((await fetch(url + '/shared/cards.js')).status, 200);
   assert.equal((await fetch(url + '/app.js')).status, 200);
   assert.equal((await (await fetch(url + '/healthz')).json()).ok, true);

@@ -8,6 +8,11 @@ const connEl = document.getElementById('conn');
 const toastEl = document.getElementById('toast');
 const rulesDialog = document.getElementById('rules-dialog');
 document.getElementById('btn-rules').addEventListener('click', () => rulesDialog.showModal());
+const typesDialog = document.getElementById('types-dialog');
+document.getElementById('btn-types').addEventListener('click', () => {
+  document.getElementById('types-dialog-body').replaceChildren(cardTypesSection('types-dialog-title'));
+  typesDialog.showModal();
+});
 
 // ---------- state ----------
 const S = {
@@ -71,7 +76,7 @@ socket.on('state', (msg) => {
 });
 
 function setConn(text) {
-  connEl.textContent = text ?? (S.connected ? 'Online' : 'Offline — reconnecting…');
+  connEl.textContent = text ?? (S.connected ? 'Online' : 'Reconnecting…');
   connEl.className = 'pill ' + (S.connected ? 'ok' : 'bad');
 }
 
@@ -112,6 +117,46 @@ function cardEl(card, { selected, disabled, onclick, small, label } = {}) {
   }, h('img', { src: `/cards/${faceDown ? 'back' : card.art}.webp`, alt: '', draggable: 'false', loading: 'lazy', decoding: 'async' }));
 }
 
+/** Card category, shown as a text label so type never relies on colour or art alone. */
+function typeOf(card) {
+  if (!card?.kind) return { cls: '', label: 'Card' };
+  if (isHalf(card)) return { cls: 't-sheep', label: 'Sheep' };
+  if (isModifier(card)) return { cls: 't-mod', label: 'Modifier' };
+  if (card.kind === 'itslam') return { cls: 't-chal', label: 'Challenge' };
+  return { cls: 't-act', label: 'Action' };
+}
+function shortName(card) {
+  if (!card?.kind) return 'Face down';
+  if (isHalf(card)) return `${colorName(card.color)} ${card.kind === 'head' ? 'Head' : 'Butt'}`;
+  if (card.kind === 'itslam') return ITSLAM_EFFECTS[card.effect].name;
+  return CARD_INFO[card.kind].name;
+}
+
+// Card Types reference (names, counts and lines from the official Print & Play rulebook).
+const CARD_TYPES = [
+  { title: 'Sheep Cards', sub: 'Play a Head and a Butt of the same colour together.', cls: 't-sheep', label: 'Sheep', cards: [
+    ['head-cyan', 'Sheep Head', '×16 colours'], ['butt-cyan', 'Sheep Butt', '×16 colours'], ['butt-rainbow-2', 'Rainbow Head & Butt', '×2 each']] },
+  { title: 'Modifier Cards', sub: 'Painted Sheep & FrankenSheep.', cls: 't-mod', label: 'Modifier', cards: [
+    ['paint', 'Paint', '×2'], ['franken', 'Franken', '×2']] },
+  { title: 'Action Cards', sub: 'Discard all Action Cards once used.', cls: 't-act', label: 'Action', cards: [
+    ['yoink', 'Yoink!', '×2'], ['wheat', 'Wheat', '×3'], ['wolf', 'Wolf', '×2'], ['reflip', 'Re-Flip', '×2']] },
+  { title: 'Challenge Cards', sub: 'Only 1 Challenge Card can be played per turn.', cls: 't-chal', label: 'Challenge', cards: [
+    ['itslam-lure2', 'Lure 2 Sheep', '×1'], ['itslam-remove2', 'Remove 2 Sheep', '×1'], ['itslam-halve2', 'Halve 2 Sheep', '×1'],
+    ['itslam-yoinkHand', 'Yoink Entire Hand', '×1'], ['itslam-recover1', 'Recover 1 Sheep', '×1']] },
+];
+
+function cardTypesSection(titleId) {
+  return h('section', { class: 'types', 'aria-labelledby': titleId },
+    h('div', { class: 'types-head' }, h('h2', { id: titleId }, 'Card Types'), h('p', {}, '54 Game Cards · 1 Sheep Coin Token')),
+    h('div', { class: 'groups' }, CARD_TYPES.map((g) => h('div', { class: 'group' },
+      h('div', {}, h('h3', {}, g.title), h('p', { class: 'gsub' }, g.sub)),
+      h('div', { class: 'group-cards', role: 'list' }, g.cards.map(([art, name, count]) => h('div', { class: 'tcell', role: 'listitem' },
+        h('div', { class: 'card', role: 'img', 'aria-label': `${name} card` }, h('img', { src: `/cards/${art}.webp`, alt: '', loading: 'lazy' })),
+        h('span', { class: `chip ${g.cls}` }, g.label),
+        h('span', { class: 'name' }, name),
+        h('span', { class: 'count' }, count))))))));
+}
+
 // ---------- derived ----------
 const myPlayer = () => S.game?.players.find((p) => p.id === S.you);
 const playerName = (id) => S.game?.players.find((p) => p.id === id)?.name ?? S.room?.members.find((m) => m.id === id)?.name ?? '?';
@@ -145,24 +190,32 @@ function homeView() {
     const res = await emit(event, { name, ...extra });
     if (res.ok) saveCreds({ code: res.code, playerId: res.playerId, secret: res.secret });
   };
-  return h('section', { class: 'home' },
-    h('div', { class: 'hero' },
-      h('h1', {}, 'Is That Sheep Looking At Me?'),
-      h('p', { class: 'sub' }, 'Build the mightiest flock from heads & butts. 2–4 players, online, no account needed.')),
-    !S.connected && h('p', { class: 'notice' }, 'Connecting to the game server…'),
-    h('div', { class: 'panel' },
-      h('label', { for: 'name' }, 'Your name'), nameInput,
-      S.prefillCode && h('div', { class: 'invite' },
-        h('p', {}, 'You were invited to room ', h('b', {}, S.prefillCode), '.'),
-        h('button', { class: 'btn primary big', type: 'button', disabled: !S.connected || null, onclick: () => go('room:join', { code: S.prefillCode }) }, `Join room ${S.prefillCode}`)),
-      h('div', { class: 'grid2' },
-        h('button', { class: 'btn primary', type: 'button', disabled: !S.connected || null, onclick: () => go('match:quick') }, '🎲 Quick match'),
-        h('button', { class: 'btn', type: 'button', disabled: !S.connected || null, onclick: () => go('room:create', { isPublic: false }) }, '🔒 Private room')),
-      h('p', { class: 'fine' }, 'Quick match puts you in a public lobby with strangers. It starts 30s after a second player joins, or right away at 4. Private rooms are invite-only: share the code or link.'),
-      h('form', { class: 'join', onsubmit: (e) => { e.preventDefault(); const c = codeInput.value.trim().toUpperCase(); if (!/^[A-Z0-9]{5}$/.test(c)) return toast('Room codes are 5 letters/numbers.'); go('room:join', { code: c }); } },
-        h('label', { for: 'code' }, 'Have a room code?'),
-        h('div', { class: 'row' }, codeInput, h('button', { class: 'btn', type: 'submit', disabled: !S.connected || null }, 'Join')))),
-    h('p', { class: 'fine center' }, 'Unofficial fan-made version. Game and card artwork by Zedaph & DotDotDash / CREO Cards (from the official Print & Play).'));
+  const off = !S.connected || null;
+  return h('div', { class: 'home' },
+    h('section', { class: 'hero', 'aria-label': 'Play' },
+      h('div', {},
+        h('h1', {}, h('img', { class: 'wordmark', src: '/brand/wordmark.png', alt: 'Is That Sheep Looking At Me?', width: '448', height: '351' })),
+        h('p', { class: 'tagline' }, 'Build a mighty flock of sheep using Sheep Head and Sheep Butt Cards. But be careful, as your sheep can get stolen or discarded by other players!'),
+        h('ul', { class: 'meta', 'aria-label': 'Game details' }, h('li', {}, '2–4 Players'), h('li', {}, '10–20 mins'), h('li', {}, 'Ages 8+')),
+        h('div', { class: 'name-field' }, h('label', { for: 'name' }, 'Your name'), nameInput),
+        S.prefillCode && h('div', { class: 'invite' },
+          h('p', {}, 'You were invited to room ', h('b', {}, S.prefillCode), '.'),
+          h('button', { class: 'btn primary', type: 'button', disabled: off, onclick: () => go('room:join', { code: S.prefillCode }) }, `Join room ${S.prefillCode}`)),
+        h('div', { class: 'cta' },
+          h('button', { class: 'btn primary', type: 'button', disabled: off, onclick: () => go('match:quick') }, 'Quick match'),
+          h('button', { class: 'btn', type: 'button', disabled: off, onclick: () => go('room:create', { isPublic: false }) }, 'Private room'),
+          h('form', { class: 'joincode', onsubmit: (e) => { e.preventDefault(); const c = codeInput.value.trim().toUpperCase(); if (!/^[A-Z0-9]{5}$/.test(c)) return toast('Room codes are 5 letters/numbers.'); go('room:join', { code: c }); } },
+            h('label', { for: 'code' }, 'Have a room code?'), codeInput,
+            h('button', { class: 'btn dark', type: 'submit', disabled: off }, 'Join'))),
+        !S.connected && h('p', { class: 'notice', style: 'margin-top:1rem' }, 'Connecting to the game server… if the site was idle this can take up to a minute.')),
+      h('figure', { class: 'hero-art' },
+        h('div', { class: 'hero-pair' },
+          h('img', { src: '/brand/hero-head.webp', alt: 'Rainbow Head card', width: '498', height: '718' }),
+          h('img', { src: '/brand/hero-butt.webp', alt: 'Rainbow Butt card', width: '498', height: '718' })),
+        h('figcaption', {}, h('span', { class: 'chip t-sheep' }, 'Sheep'), 'Full Rainbow Sheep', h('span', { class: 'pts' }, '· 2 points')))),
+    h('p', { class: 'fine', style: 'margin:.8rem 0 0' }, 'Quick match puts you in a public lobby; it starts 30s after a second player joins (or right away at 4). Private rooms are invite-only — share the code or link.'),
+    cardTypesSection('cards-title'),
+    h('p', { class: 'fine center home-foot' }, 'Unofficial fan-made version. Game and card artwork by Zedaph & DotDotDash / CREO Cards (from the official Print & Play).'));
 }
 
 function leaveButton() {
@@ -356,10 +409,10 @@ function handPanel(me) {
   return h('div', { class: 'handwrap' },
     h('div', { class: 'row spread' }, h('h2', {}, `Your hand (${me.hand.length})`), me.hand.length > HAND_MAX && h('span', { class: 'tag warn' }, `over ${HAND_MAX}`)),
     myTurn && actionBar(me),
-    h('div', { class: 'hand', role: 'list' }, hand.length ? hand.map((c) => h('div', { role: 'listitem' }, cardEl(c, {
+    h('div', { class: 'hand', role: 'list' }, hand.length ? hand.map((c) => h('div', { role: 'listitem', class: 'hcell' }, cardEl(c, {
       selected: S.sel.has(c.id), onclick: canPick ? () => toggle(c) : null,
       disabled: S.discardMode && c.kind === 'itslam',
-    }))) : h('p', { class: 'fine' }, 'Your hand is empty.')));
+    }), h('span', { class: `chip ${typeOf(c).cls}` }, typeOf(c).label), h('span', { class: 'hname' }, shortName(c)))) : h('p', { class: 'fine' }, 'Your hand is empty.')));
 }
 const ORDER = ['head', 'butt', 'paint', 'franken', 'wheat', 'wolf', 'yoink', 'reflip', 'itslam'];
 function handSort(a, b) {
