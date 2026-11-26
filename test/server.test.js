@@ -208,5 +208,7 @@ test('serves the client, room links and health check', async () => {
   assert.match(await (await fetch(url + '/r/ABCDE')).text(), /Is That Sheep Looking At Me/);
   assert.equal((await fetch(url + '/shared/cards.js')).status, 200);
   assert.equal((await fetch(url + '/app.js')).status, 200);
+  for (const f of ['/', '/app.js', '/style.css', '/shared/cards.js', '/r/ABCDE']) assert.equal((await fetch(url + f)).headers.get('cache-control'), 'no-cache', f);
+  assert.match((await fetch(url + '/cards/wolf.webp')).headers.get('cache-control'), /max-age=86400/);
   assert.equal((await (await fetch(url + '/healthz')).json()).ok, true);
 });

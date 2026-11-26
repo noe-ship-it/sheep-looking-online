@@ -26,10 +26,13 @@ export function createServer() {
   });
   // RENDER_GIT_COMMIT is set by Render on each deploy: lets you confirm which build is live.
   app.get('/healthz', (_req, res) => res.json({ ok: true, version: (process.env.RENDER_GIT_COMMIT ?? 'dev').slice(0, 7), turnSeconds: config.turnMs / 1000, ...manager.stats() }));
-  app.use('/shared', express.static(path.join(root, 'shared'), { maxAge: '1h' }));
-  app.use(express.static(path.join(root, 'public'), { maxAge: '1h', extensions: ['html'] }));
+  // Code and pages are revalidated on every load (cheap 304s via ETag) so a redeploy reaches players at once;
+  // card art, fonts and images rarely change and are cached for a day.
+  const cacheHeaders = (res, file) => res.set('Cache-Control', /\.(html|js|css|json)$/.test(file) ? 'no-cache' : 'public, max-age=86400');
+  app.use('/shared', express.static(path.join(root, 'shared'), { setHeaders: cacheHeaders }));
+  app.use(express.static(path.join(root, 'public'), { extensions: ['html'], setHeaders: cacheHeaders }));
   // Room links like /r/ABCDE serve the app; the client reads the code from the URL.
-  app.get('/r/:code', (_req, res) => res.sendFile(path.join(root, 'public', 'index.html')));
+  app.get('/r/:code', (_req, res) => res.set('Cache-Control', 'no-cache').sendFile(path.join(root, 'public', 'index.html')));
 
   const server = http.createServer(app);
   const io = new Server(server, {
