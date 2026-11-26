@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Is That Sheep Looking At Me? — Online</title>
+  <meta name="description" content="Play the Is That Sheep Looking At Me? card game online with 2–4 friends. Fan-made, unofficial.">
+  <meta name="theme-color" content="#f7d6e4">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Home">🐑 <span>Sheep Looking Online</span></a>
+    <div class="topbar-right">
+      <span id="conn" class="pill" role="status" aria-live="polite">Connecting…</span>
+      <button id="btn-rules" class="btn ghost small" type="button">How to play</button>
+    </div>
+  </header>
+  <main id="app" tabindex="-1"><p class="loading">Loading…</p></main>
+  <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
+
+  <dialog id="rules-dialog" aria-labelledby="rules-title">
+    <form method="dialog" class="dialog-close"><button class="btn ghost small" aria-label="Close how to play">✕</button></form>
+    <h2 id="rules-title">How to play</h2>
+    <div class="rules">
+      <p><b>Your mission:</b> build a mighty flock of sheep using Sheep Head and Sheep Butt cards. The player with the biggest flock at the end of the game wins!</p>
+      <h3>Setup</h3>
+      <p>54 cards are shuffled. Each player is dealt 5 cards, and you only see your own hand. The rest form the draw pile, with room for a discard pile. Play moves clockwise.</p>
+      <h3>On your turn</h3>
+      <ol>
+        <li><b>Draw:</b> always start by drawing 1 card. If you have fewer than 3 cards, keep drawing until you have 3.</li>
+        <li><b>Play or pass:</b> make as many moves as you like, in any order, or do nothing at all.</li>
+        <li><b>Baa:</b> if you have more than 7 cards, discard face down until you have 7. Challenge cards can’t be discarded. Then say “Baa!” to end your turn.</li>
+      </ol>
+      <p class="fine">Online timer: you get 8 seconds to act. The clock restarts every time you play a card. If it runs out, your turn ends automatically.</p>
+      <h3>Making sheep</h3>
+      <ul>
+        <li><b>Basic Sheep:</b> a head and a butt of the same colour. Worth 1 point.</li>
+        <li><b>Half Rainbow:</b> a rainbow head with any coloured butt, or a rainbow butt with any coloured head. Worth 1 point.</li>
+        <li><b>Full Rainbow:</b> a sheep made with 2 rainbow cards. Worth <b>2 points</b>.</li>
+        <li><b>Painted Sheep:</b> a Paint card with any colour head and any colour butt. Worth 1 point.</li>
+        <li><b>FrankenSheep:</b> a Franken card with any 2 heads or any 2 butts. Worth 1 point. A <b>double-headed</b> FrankenSheep protects <i>all sheep in its field</i> from Wolf cards (it has eyes in the back of its head(s)!). A <b>double-butted</b> one protects <i>all sheep in its field</i> from Wheat cards (it has no mouth to eat with!).</li>
+      </ul>
+      <h3>Bodyswapping</h3>
+      <p>You can bodyswap <b>Modified</b> sheep (Paint or Franken) or <b>Half Rainbow</b> sheep in <b>any</b> field, including your own. Swap in a head or butt <b>from your hand</b> so that a <b>Basic Sheep or Full Rainbow Sheep</b> is left behind. You take the replaced card, plus the Modifier card if there was one, back into your hand. For example, a FrankenSheep with a Green Head and a Yellow Head can be bodyswapped with a Green Butt or a Yellow Butt. This also removes a FrankenSheep’s protection!</p>
+      <h3>Action cards (discarded once used)</h3>
+      <ul>
+        <li><b>Yoink!</b>: blindly take 2 cards from an opponent’s hand.</li>
+        <li><b>Wheat</b>: lure any 1 sheep, with its modifiers, from a field of your choice into your field.</li>
+        <li><b>Wolf</b>: remove any 1 sheep, with its modifiers, from a field of your choice to the discard pile.</li>
+        <li><b>Re-Flip</b>: after any coin flip, force a new guess and a new flip. You can play it even if the flip doesn’t directly affect you.</li>
+      </ul>
+      <h3>“Is That Sheep Looking At Me?” challenge cards</h3>
+      <ol>
+        <li>Play a challenge card against an opponent of your choice. You can play only 1 per turn.</li>
+        <li>Declare whether you think the sheep coin is (heads) or isn’t (butts) looking at you.</li>
+        <li>The coin is flipped.</li>
+        <li>If you guessed correctly, you use the card’s effect on your opponent. If you guessed incorrectly, your opponent uses it on you.</li>
+      </ol>
+      <ul>
+        <li><b>Lure 2 Sheep:</b> move 2 sheep of your choice from the opponent’s field to yours, even past a Double-Butted FrankenSheep.</li>
+        <li><b>Remove 2 Sheep:</b> send 2 sheep of your choice from the opponent’s field to the discard pile, even past a Double-Headed FrankenSheep.</li>
+        <li><b>Yoink Entire Hand:</b> take the opponent’s entire hand into yours.</li>
+        <li><b>Halve 2 Sheep:</b> steal half a sheep of your choice, plus its Modifier card, into your hand. The opponent takes the remaining half into their hand. Then repeat with another sheep.</li>
+        <li><b>Recover 1 Sheep:</b> go through the discard pile, pick out a valid sheep (with its Modifier card if it uses one) and add it to your field.</li>
+      </ul>
+      <p>Any challenge cards still held at the end of the game are each worth <b>−3 points</b>, so make sure you play them!</p>
+      <h3>End of the game</h3>
+      <p>Once the player who draws the last card from the draw pile ends their turn, the <b>Final Round</b> begins. Every player then gets a final turn, including the player who drew the last card. Then count your points. The most points wins. <b>In the event of a tie, the sheep coin is flipped to decide the winner.</b></p>
+      <p class="fine">Unofficial online version. “Is That Sheep Looking At Me?” and all card artwork are by Zedaph &amp; DotDotDash, published by CREO Cards. The artwork is taken from the official Print &amp; Play.</p>
+    </div>
+  </dialog>
+
+  <script src="/socket.io/socket.io.min.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
